@@ -16,28 +16,29 @@ The data has been sourced from Cyclistic’s data warehouse. The data contains d
 
 ## Analysis
 
-<img src= "">
+<img src= "https://github.com/akantidas/Cyclistic-Ride-Sharing/blob/69e31215e7e3312988ff37a63ac21d86b5595740/Cyclistic_bike_sharing/Number%20of%20riders%20by%20day%20of%20week.png">
 
 ### It seems like the number of rides are mostly covered by subscribers on weekdays. Indicating commuting to work.
 
 <br>
 <br>
 
-<img src= "">
+<img src= "https://github.com/akantidas/Cyclistic-Ride-Sharing/blob/69e31215e7e3312988ff37a63ac21d86b5595740/Cyclistic_bike_sharing/Average%20Ride%20duration%20by%20day%20of%20th%20week.png">
 
 ### Interesting. Average Ride Duration is almost same everyday for Subscribers, and is very low. Again indicating commuting to work. On the other hand, Average Ride Duration for Casual Riders are long, indicating tourists or recreational riders.
 
 <br>
 <br>
 
-<img src= "">
+<img src= "https://github.com/akantidas/Cyclistic-Ride-Sharing/blob/69e31215e7e3312988ff37a63ac21d86b5595740/Cyclistic_bike_sharing/Density%20Plot.png">
 
 ### The density plots below shows the same insights as the previous graph chart. Indicating that more subscriber riders ride for less time and casual riders ride for longer.
 
 <br>
 <br>
 
-<img src="">
+<img src="https://github.com/akantidas/Cyclistic-Ride-Sharing/blob/69e31215e7e3312988ff37a63ac21d86b5595740/Cyclistic_bike_sharing/Monthly%20Ride%20Trends.png">
+
 ### This plot shows that the number of rides increases in summer for both rider types and falls in winter.
 
 <br>
