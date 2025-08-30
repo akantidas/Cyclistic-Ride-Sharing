@@ -1,0 +1,300 @@
+---
+title: "Bike Sharing useage by Casual Riders and Subscribers"
+author: "Anorup Kanti Das"
+date: "2025-08-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Alright, this is my third attempt.In the first attempt, I tried cleaning the datasets in Excel and then analyze them in R. I was running into a lot of problems and wasted a lot of my time. In my second attempt, I did all the cleaning and analyzing only using R and was successfull. This is my third attempt. In this attempt, I plan on doing my complete process of analysis only using R but with a neat approach and more effective and readable codes. Let's get started.
+
+
+## About The Analysis
+The goal for this analysis is to determine the usage difference of bike sharing by Cyclistic among Member & Casual, and find out if there is way Cyclistic can advertise to Casual customers to switch to becoming a Member becuase more profit comes from Members.
+
+### About The Data
+The data has been sourced from Cyclistic’s data warehouse. The data contains details about Bike Sharing usage in the last five quarters.
+
+```{r message=FALSE, warning=FALSE, include=FALSE, results='hide'}
+# First, we start with loading the packages we will need in this analysis.
+library(tidyverse)
+library(conflicted)
+conflict_prefer("filter", "dplyr")
+conflict_prefer("lag", "dplyr")
+```
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE, results='hide'}
+# Here we will import our datasets.
+q1_2019 <- read_csv("Divvy_Trips_2019_Q1.csv")
+q2_2019 <- read_csv("Divvy_Trips_2019_Q2.csv")
+q3_2019 <- read_csv("Divvy_Trips_2019_Q3.csv")
+q4_2019 <- read_csv("Divvy_Trips_2019_Q4.csv")
+q1_2020 <- read_csv("Divvy_Trips_2020_Q1.csv")
+```
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE, results='hide'}
+# We will have to rename the columns of our datasets so that the column names are similar in every datasets.
+(q1_2019 <- rename(q1_2019, start_station_id = from_station_id, start_station_name = from_station_name, end_station_id = to_station_id, end_station_name = to_station_name))
+(q3_2019 <- rename(q3_2019, start_station_id = from_station_id, start_station_name = from_station_name, end_station_id = to_station_id, end_station_name = to_station_name))
+(q4_2019 <- rename(q4_2019, start_station_id = from_station_id, start_station_name = from_station_name, end_station_id = to_station_id, end_station_name = to_station_name))
+(q1_2020 <- rename(q1_2020, trip_id = ride_id, bikeid = rideable_type, start_time = started_at, end_time = ended_at, usertype = member_casual))
+(q2_2019 <- rename(q2_2019, trip_id = `01 - Rental Details Rental ID`, bikeid = `01 - Rental Details Bike ID`, start_time = `01 - Rental Details Local Start Time`, end_time = `01 - Rental Details Local End Time`, start_station_id = `03 - Rental Start Station ID`, start_station_name = `03 - Rental Start Station Name`, end_station_id = `02 - Rental End Station ID`, end_station_name = `02 - Rental End Station Name`, usertype = `User Type`))
+```
+
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE, results='hide'}
+# In order to combine the datasets in one whole dataframe, we will change the data types of some columns.
+q1_2019 <- mutate(q1_2019, trip_id = as.character(trip_id), bikeid = as.character(bikeid))
+q2_2019 <- mutate(q2_2019, trip_id = as.character(trip_id), bikeid = as.character(bikeid))
+q3_2019 <- mutate(q3_2019, trip_id = as.character(trip_id), bikeid = as.character(bikeid))
+q4_2019 <- mutate(q4_2019, trip_id = as.character(trip_id), bikeid = as.character(bikeid))
+```
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE, results='hide'}
+# Combining the data.
+all_trips <- bind_rows(q1_2019, q2_2019, q3_2019, q4_2019, q1_2020)
+```
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE, results='hide'}
+# Removing the inconsistent and unnecessary columns.
+all_trips <- all_trips %>%
+  select(-c(tripduration, gender, birthyear, `01 - Rental Details Duration In Seconds Uncapped`, `Member Gender`, `05 - Member Details Member Birthday Year`, start_lat, start_lng, end_lat, end_lng))
+```
+
+
+```{r include=FALSE}
+# The usertype contains two different type of data in four formats. We will recode the four elements so there is only two formats.
+all_trips <- all_trips %>%
+  mutate(usertype = recode(usertype, "member" = "Subscriber", "Customer" = "Casual", "casual" = "Casual")) %>%
+  mutate(tripduration = difftime(all_trips$end_time, all_trips$start_time, units = "secs"))
+```
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE, results='hide'}
+# Here we will remove the bad data. This data where recorded when some bikes where taken out from the docking stations.
+all_trips_v2 <- all_trips[!(all_trips$start_station_name == "HQ QR" | all_trips$tripduration<0),]
+```
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE, results='hide'}
+# Here we will create some new columns where each column will contain different elements of the date in order to get some more data for our analysis.
+all_trips_v2 <- all_trips_v2 %>%
+  mutate(date = as.Date(start_time),
+         year = format(date, "%Y"),
+         month = format(date, "%m"),
+         day = format(date, "%d"),
+         day_of_week = format(date, "%A"),
+        ) %>%
+  mutate(day_of_week = ordered(day_of_week,
+                               levels = c("Sunday", "Monday", "Tuesday", "Wednesday",
+                                          "Thursday", "Friday", "Saturday")))
+```
+
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE, results='hide'}
+# We will create a new variable so that we don't have to recalculate every time we will create a visualization.
+daily_trips <- all_trips_v2 %>%
+  group_by(usertype, day_of_week) %>%
+  summarise(number_of_rides = n(),
+            average_duration = mean(tripduration, na.rm = TRUE)) %>%
+  ungroup()
+```
+
+```{r include=FALSE, message=FALSE, warning=FALSE}
+# We will create another variable so that we can analyze Monthly Trips by different riders.
+monthly_trips <- all_trips_v2 %>%
+  group_by(usertype, month) %>%
+  summarise(number_of_rides = n()) %>%
+  ungroup() %>%
+  mutate(month = ordered(month,
+                         levels = c("01", "02", "03", "04", "05", "06",
+                                    "07", "08", "09", "10", "11", "12"),
+                         labels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")))
+```
+
+
+
+## Data visualizations with insights.
+##### Skip to the **Key Findings** & **Reccomendations** part if not interested in graphs. The Key Finding Indicators or KPIs will be listed at the end.
+
+<br>
+<br>
+
+##### It seems like the number of rides are mostly covered by subscribers on weekdays. Indicating commuting to work.
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+# We will create a visualization to analyze the Number Of Rides by Day Of Weeks by different rider types.
+ggplot(data = daily_trips,
+       aes(x = day_of_week, y = number_of_rides, fill = usertype)) +
+  geom_col(position = "dodge") +
+  labs(title = "Number of Rides by Day of Week",
+       subtitle = "Casual vs. Subscriber Riders",
+       x = "Day of the Week",
+       y = "Number of Rides",
+       fill = "Rider Type") +
+  theme_minimal() +
+  scale_fill_manual(values = c("Casual" = "#00BFC4", "Subscriber" = "#F8766D")) +
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5))
+```
+
+<br>
+<br>
+<br>
+
+##### Interesting. Average Ride Duration is almost same everyday for Subscribers, and is very low. Again indicating commuting to work. On the other hand, Average Ride Duration for Casual Riders are long, indicating tourists or recreational riders.
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+# We will create a visualization to analyze the Average Ride Duration by Day Of Weeks by different rider types
+ggplot(data = daily_trips,
+       aes(x = day_of_week, y = average_duration, fill = usertype)) +
+  geom_col(position = "dodge") +
+  labs(title = "Average Ride Duration by Day of Week",
+       subtitle = "Casual vs. Member Riders (in seconds)",
+       x = "Day of the Week",
+       y = "Average Ride Duration (Seconds)",
+       fill = "Rider Type") +
+  theme_minimal() +
+  scale_fill_manual(values = c("Casual" = "#00BFC4", "Subscriber" = "#F8766D")) +
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5))
+```
+<br>
+<br>
+<br>
+
+
+##### The density plots below shows the same insights as the previous graph chart. Indicating that more subscriber riders ride for less time and casual riders ride for longer.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# We will create a visualization to analyze the Ride Duration of different rider types
+ggplot(data = all_trips_v2, aes(x = tripduration, fill = usertype)) +
+  geom_density(alpha = 0.6) +
+  labs(title = "Density Plot of Ride Duration",
+       subtitle = "Comparison of Casual vs. Member Riders",
+       x = "Ride Duration (Seconds)",
+       y = "Density",
+       fill = "Rider Type") +
+  theme_minimal() +
+  scale_fill_manual(values = c("Casual" = "#00BFC4", "Subscriber" = "#F8766D")) +
+  xlim(0, 10000) + # Limiting the x-axis to a more readable range
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5))
+```
+<br>
+
+<br>
+
+<br>
+
+
+##### This plot shows that the number of rides increases in summer for both rider types and falls in winter.
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# We will create a visual to see if Monthly Trips differ by Rider Type.
+ggplot(data = monthly_trips,
+       aes(x = month, y = number_of_rides, group = usertype, color = usertype)) +
+  geom_line(linewidth = 1.5) +
+  geom_point(size = 3) +
+  labs(title = "Monthly Ride Trends",
+       subtitle = "Number of Rides by Month for Each Rider Type",
+       x = "Month",
+       y = "Number of Rides",
+       color = "Rider Type") +
+  theme_minimal() +
+  scale_color_manual(values = c("Casual" = "#00BFC4", "Subscriber" = "#F8766D")) +
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5))
+```
+
+
+## Key Findings
+
+* **Ride Frequency**: Members consistently make more rides than Casual users, especially on weekdays. This suggests members are largely commuters.
+
+* **Ride Duration**: Casual riders take significantly longer trips than Members. This aligns with patterns of tourists and recreational riders.
+
+* **Weekly Trends**: Casual usage spikes on weekends, while Member usage is higher during weekdays, again pointing to commuting behavior.
+
+* **Ride Distribution**: The density plot shows Casual rides have a wider spread and heavier tail, confirming they sometimes take very long trips compared to Members.
+
+
+## Business Insights
+
+1. **Casual = Tourists / Leisure**
+
+  + Longer rides, weekend peaks.
+
+  + Likely renting bikes for sightseeing, group trips, or one-off leisure activities.
+
+2. **Members = Commuters / Daily Users**
+
+  + Shorter, frequent weekday rides.
+
+  + Likely using bikes as part of their regular work commute.
+
+
+## Recommendations
+
+1. **Membership Conversions**
+
+  + Create targeted campaigns for Casual users offering “Weekend-to-Membership” discounts. Example: *“Save more when you ride regularly — convert to a Member today!”*
+
+  + Offer multi-day tourist passes that subtly encourage upgrading to full membership.
+
+2. **Commuter Incentives**
+
+  + Partner with employers for corporate membership discounts.
+
+  + Highlight time savings and cost-effectiveness vs. other transport.
+
+3. **Seasonality & Events**
+
+  + Launch seasonal promotions (summer = more tourists, winter = more locals).
+
+  + Target event-based traffic (festivals, conferences) with special deals.
+
+<br>
+<br>
+<br>
+
+### KPIs
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+cat("\n\n--- KEY PERFORMANCE INDICATORS (KPIs) ---\n\n")
+
+# Calculate and print total rides per rider type
+total_rides_by_type <- all_trips_v2 %>%
+  group_by(usertype) %>%
+  summarise(total_rides = n())
+
+print(total_rides_by_type)
+
+# Calculate and print average ride length
+avg_ride_length_by_type <- all_trips_v2 %>%
+  group_by(usertype) %>%
+  summarise(average_ride = mean(tripduration))
+
+print(avg_ride_length_by_type)
+
+# Calculate and print percentage of total rides
+total_rides_all <- nrow(all_trips_v2)
+ride_percentages <- total_rides_by_type %>%
+  mutate(percentage = round(total_rides / total_rides_all * 100, 2))
+
+print(ride_percentages)
+
+# Run a two-sample t-test
+t_test_result <- t.test(tripduration ~ usertype, data = all_trips_v2)
+
+# Print summary
+print(t_test_result)
+
+cat("\n-----------------------------------------\n")
+```
